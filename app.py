@@ -8,7 +8,7 @@ ctk.set_default_color_theme("blue")
 
 app = ctk.CTk()
 app.title("Firmador automático Word")
-app.geometry("620x650")  # ventana más pequeña
+app.geometry("620x700")
 
 
 firmas = [
@@ -109,10 +109,10 @@ botones_img = []
 
 for i in range(4):
     fila = ctk.CTkFrame(scroll)
-    fila.pack(fill="x", pady=6)
+    fila.pack(fill="x", pady=8)
 
     entrada = ctk.CTkEntry(fila, placeholder_text=f"Nombre firmante {i+1}", height=34)
-    entrada.pack(side="left", fill="x", expand=True, padx=6, pady=6)
+    entrada.pack(side="left", fill="x", expand=True, padx=6)
 
     entrada.bind(
         "<KeyRelease>",
@@ -121,12 +121,33 @@ for i in range(4):
     )
 
     btn = ctk.CTkButton(
-        fila, text="Seleccionar firma", width=150,
+        fila, text="Seleccionar firma", width=140,
         command=lambda idx=i: seleccionar_imagen(idx)
     )
-    btn.pack(side="right", padx=6)
+    btn.pack(side="right", padx=5)
 
     botones_img.append(btn)
+
+    # ===== SLIDER DE TAMAÑO =====
+    slider_frame = ctk.CTkFrame(scroll)
+    slider_frame.pack(fill="x", padx=10)
+
+    ctk.CTkLabel(slider_frame, text="Tamaño firma (cm):").pack(side="left")
+
+    slider = ctk.CTkSlider(
+        slider_frame,
+        from_=1.5,
+        to=6.0,
+        number_of_steps=45,
+        width=200,
+        command=lambda value, idx=i:
+        firmas.__setitem__(
+            idx,
+            {**firmas[idx], "tamano": round(float(value), 2)}
+        )
+    )
+    slider.set(3.0)
+    slider.pack(side="left", padx=10)
 
 
 # ================= DOCUMENTOS =================
