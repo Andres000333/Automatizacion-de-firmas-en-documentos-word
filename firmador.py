@@ -6,6 +6,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from utils import contiene_nombre
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx2pdf import convert
+
 # ========= LECTURA TEXTO TABLAS =========
 
 def texto_completo_celda(cell):
@@ -41,28 +43,24 @@ def limpiar_parrafos_vacios_antes_tabla(tabla, maximo=10):
                 continue
         break
 
+
 def insertar_firma_en_celda(cell, imagen, tamano):
-    # limpiar celda
     cell.text = ""
 
-    # ===== 1) Alinear contenido verticalmente ABAJO =====
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
 
-    vAlign = OxmlElement('w:vAlign')
-    vAlign.set(qn('w:val'), 'bottom')
+    vAlign = OxmlElement("w:vAlign")
+    vAlign.set(qn("w:val"), "bottom")
     tcPr.append(vAlign)
 
-    # ===== 2) Márgenes internos de la celda =====
-    tcMar = OxmlElement('w:tcMar')
+    tcMar = OxmlElement("w:tcMar")
 
-    # pequeño espacio arriba (separación superior)
     top = OxmlElement("w:top")
-    top.set(qn("w:w"), "120")  # ← puedes ajustar: 80-200
+    top.set(qn("w:w"), "120")
     top.set(qn("w:type"), "dxa")
     tcMar.append(top)
 
-    # sin margen abajo (pegada al nombre)
     bottom = OxmlElement("w:bottom")
     bottom.set(qn("w:w"), "0")
     bottom.set(qn("w:type"), "dxa")
@@ -70,20 +68,45 @@ def insertar_firma_en_celda(cell, imagen, tamano):
 
     tcPr.append(tcMar)
 
-    # ===== 3) Insertar imagen centrada =====
     p = cell.paragraphs[0]
     run = p.add_run()
     run.add_picture(imagen, width=Cm(tamano))
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    # ===== 4) Quitar espacios del párrafo =====
     p.paragraph_format.space_before = 0
     p.paragraph_format.space_after = 0
+
+
+# ========= FECHA DE APROBACIÓN (TABLAS) =========
+
+def actualizar_fecha_aprobacion(doc, nueva_fecha=None):
+    """
+    - Busca 'Fecha de Aprobación' dentro de tablas
+    - Cambia la celda de la derecha
+    - Si nueva_fecha es None → no toca nada
+    """
+
+    if not nueva_fecha:
+        return
+
+    for table in doc.tables:
+        for row in table.rows:
+            for i, cell in enumerate(row.cells):
+                texto = cell.text.strip().lower()
+
+                if "fecha de aprobación" in texto:
+                    if i + 1 < len(row.cells):
+                        row.cells[i + 1].text = nueva_fecha
+                        return
+
+
 # ========= PREVIEW =========
 
-def generar_preview(ruta_doc, firmas):
+def generar_preview(ruta_doc, firmas, fecha_aprobacion=None):
     doc = Document(ruta_doc)
     alguna_firma = False
+
+    actualizar_fecha_aprobacion(doc, fecha_aprobacion)
 
     for table in doc.tables:
         if len(table.rows) != 2 or len(table.columns) != 3:
@@ -107,6 +130,7 @@ def generar_preview(ruta_doc, firmas):
                 if contiene_nombre(nombre, texto_info):
                     insertar_firma_en_celda(celda_firma, imagen, tamano)
                     alguna_firma = True
+                    break
 
     if not alguna_firma:
         return False
@@ -119,9 +143,10 @@ def generar_preview(ruta_doc, firmas):
 
 # ========= FIRMA FINAL =========
 
-def firmar_documento_tablas(doc_base, firmas, ruta_salida):
+def firmar_documento_tablas(doc_base, firmas, ruta_salida, fecha_aprobacion=None):
     doc = Document(doc_base)
-    firmas_usadas = set()
+
+    actualizar_fecha_aprobacion(doc, fecha_aprobacion)
 
     for table in doc.tables:
         if len(table.rows) != 2 or len(table.columns) != 3:
@@ -134,10 +159,7 @@ def firmar_documento_tablas(doc_base, firmas, ruta_salida):
             celda_info = table.cell(1, col)
             texto_info = texto_completo_celda(celda_info)
 
-            for idx, firma in enumerate(firmas):
-                if idx in firmas_usadas:
-                    continue
-
+            for firma in firmas:
                 nombre = firma.get("nombre")
                 imagen = firma.get("imagen")
                 tamano = firma.get("tamano", 3.0)
@@ -147,7 +169,24 @@ def firmar_documento_tablas(doc_base, firmas, ruta_salida):
 
                 if contiene_nombre(nombre, texto_info):
                     insertar_firma_en_celda(celda_firma, imagen, tamano)
-                    firmas_usadas.add(idx)
                     break
 
-    doc.save(ruta_salida)
+    carpeta_base = os.path.dirname(ruta_salida)
+
+    carpeta_word = os.path.join(carpeta_base, "WORD")
+    carpeta_pdf = os.path.join(carpeta_base, "PDF")
+
+    os.makedirs(carpeta_word, exist_ok=True)
+    os.makedirs(carpeta_pdf, exist_ok=True)
+
+    nombre_archivo = os.path.basename(ruta_salida)
+
+    ruta_word = os.path.join(carpeta_word, nombre_archivo)
+    ruta_pdf = os.path.join(carpeta_pdf, nombre_archivo.replace(".docx", ".pdf"))
+
+    doc.save(ruta_word)
+
+    try:
+        convert(ruta_word, ruta_pdf)
+    except Exception as e:
+        print("Error al convertir a PDF:", e)

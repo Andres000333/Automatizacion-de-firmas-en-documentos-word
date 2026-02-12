@@ -8,7 +8,7 @@ ctk.set_default_color_theme("blue")
 
 app = ctk.CTk()
 app.title("Firmador automático Word")
-app.geometry("620x700")
+app.geometry("620x740")
 
 
 firmas = [
@@ -54,7 +54,7 @@ def previsualizar():
         messagebox.showerror("Error", "Selecciona documentos primero")
         return
 
-    ok = generar_preview(docs_seleccionados[0], firmas)
+    ok = generar_preview(docs_seleccionados[0], firmas, entrada_fecha.get().strip() or None)
     if not ok:
         messagebox.showerror("Error", "No se encontró ningún nombre.")
 
@@ -74,13 +74,28 @@ def generar_todos():
         messagebox.showerror("Error", "Escribe nombre de carpeta")
         return
 
+    fecha = entrada_fecha.get().strip() or None
+
     ruta_final = os.path.join(carpeta_destino, nombre_carpeta)
     os.makedirs(ruta_final, exist_ok=True)
 
-    for ruta_doc in docs_seleccionados:
+    total = len(docs_seleccionados)
+    barra_progreso.set(0)
+    app.update_idletasks()
+
+    for i, ruta_doc in enumerate(docs_seleccionados, start=1):
         nombre_archivo = os.path.basename(ruta_doc)
         ruta_salida = os.path.join(ruta_final, nombre_archivo)
-        firmar_documento_tablas(ruta_doc, firmas, ruta_salida)
+
+        firmar_documento_tablas(
+            ruta_doc,
+            firmas,
+            ruta_salida,
+            fecha_aprobacion=fecha
+        )
+
+        barra_progreso.set(i / total)
+        app.update_idletasks()
 
     messagebox.showinfo("Listo", "Todos los documentos fueron firmados ✔")
 
@@ -128,7 +143,6 @@ for i in range(4):
 
     botones_img.append(btn)
 
-    # ===== SLIDER DE TAMAÑO =====
     slider_frame = ctk.CTkFrame(scroll)
     slider_frame.pack(fill="x", padx=10)
 
@@ -169,14 +183,28 @@ entrada_carpeta = ctk.CTkEntry(scroll, placeholder_text="Nombre de carpeta de sa
 entrada_carpeta.pack(fill="x", pady=5)
 
 
-# ================= BOTONES FINALES =================
+# ================= FECHA =================
+ctk.CTkLabel(scroll, text="Fecha de aprobación (opcional)", font=("Arial", 17, "bold")).pack(anchor="w", pady=(20,5))
+entrada_fecha = ctk.CTkEntry(scroll, placeholder_text="Ejemplo: 25-Enero-2026")
+entrada_fecha.pack(fill="x", pady=(0,15))
+
+
+# ================= PROGRESO =================
+ctk.CTkLabel(scroll, text="Progreso", font=("Arial", 15, "bold")).pack(anchor="w", pady=(10,5))
+
+barra_progreso = ctk.CTkProgressBar(scroll)
+barra_progreso.pack(fill="x", pady=(0,20))
+barra_progreso.set(0)
+
+
+# ================= BOTONES =================
 ctk.CTkButton(
     scroll,
     text="PREVISUALIZAR (con firmas)",
     height=45,
     font=("Arial", 14, "bold"),
     command=previsualizar
-).pack(fill="x", pady=(25,8))
+).pack(fill="x", pady=(5,8))
 
 ctk.CTkButton(
     scroll,
